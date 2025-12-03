@@ -2,10 +2,9 @@ const mongoose = require('mongoose');
 
 const connectDB = async () => {
   try {
-    await mongoose.connect(process.env.MONGODB_URI, {
-      useNewUrlParser: true,
-      useUnifiedTopology: true
-    });
+    // ลบ options ที่ deprecated ออก เพราะ Mongoose v8+ จัดการให้อัตโนมัติแล้ว
+    await mongoose.connect(process.env.MONGODB_URI);
+    
     console.log('MongoDB connected!');
   } catch (err) {
     console.error('MongoDB connection error:', err);

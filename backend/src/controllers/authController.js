@@ -5,9 +5,22 @@ const Session = require('../models/session');
 const ApiLog = require('../models/apilog');
 const auditLog = require('../helpers/auditLog');
 const ms = require('ms');
+const verifyTurnstile = require('../utils/verifyTurnstile'); // [ใหม่] นำเข้า
 
 exports.login = async (req, res) => {
-    const { username, password } = req.body;
+    const { username, password, cfToken } = req.body;
+
+    // 1. [ใหม่] ตรวจสอบความเป็นคน (Human Check)
+    // ต้องแน่ใจว่ามีไฟล์ utils/verifyTurnstile.js แล้ว (จากขั้นตอนก่อนหน้า)
+    const isHuman = await verifyTurnstile(cfToken, req.ip);
+    if (!isHuman) {
+        auditLog({ req, action: 'LOGIN_BOT_BLOCK', detail: 'Turnstile failed', status: 400 });
+        return res.status(400).json({ 
+            error: 'Security Check Failed', 
+            message: 'ระบบตรวจสอบพบความผิดปกติ (Turnstile Failed) กรุณาลองใหม่อีกครั้ง' 
+        });
+    }
+
     const admin = await Admin.findOne({ username });
     if (!admin) {
         auditLog({ req, action: 'LOGIN_FAIL', detail: 'User not found', status: 400 });
@@ -19,15 +32,13 @@ exports.login = async (req, res) => {
         return res.status(400).json({ error: 'Invalid credentials' });
     }
 
-    // ดึงค่า JWT_EXPIRES_IN จาก .env
+    // ... (ส่วน Logic Session และ JWT คงเดิม ไม่มีการเปลี่ยนแปลง) ...
     const jwtExpiresIn = process.env.JWT_EXPIRES_IN || '4h';
-    const expiresInMs = ms(jwtExpiresIn); // แปลงเป็น ms
+    const expiresInMs = ms(jwtExpiresIn);
     const expiresAt = new Date(Date.now() + expiresInMs);
 
-    // เคลียร์ session ที่หมดอายุทิ้ง (optional)
     await Session.deleteMany({ userId: admin._id, expiresAt: { $lt: new Date() } });
 
-    // เช็ค session ที่ยังไม่หมดอายุ/ไม่โดน revoke
     const activeSessionCount = await Session.countDocuments({
         userId: admin._id,
         revoked: false,
@@ -38,18 +49,16 @@ exports.login = async (req, res) => {
         return res.status(400).json({ error: 'Login from too many device' });
     }
 
-    // ออก token (เวลาตรงกับ expiresAt)
     const payload = { id: admin._id, role: admin.role };
     const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: jwtExpiresIn });
 
-    // save session
     await Session.create({
         userId: admin._id,
         token,
         userAgent: req.headers['user-agent'],
         ip: req.ip,
         revoked: false,
-        expiresAt // เวลาเดียวกับ token
+        expiresAt
     });
 
     res.json({
@@ -66,14 +75,10 @@ exports.login = async (req, res) => {
 };
 
 exports.getMe = async (req, res) => {
-  // req.user ต้องมาจาก middleware auth ที่ decode JWT ให้
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
-
-  // ดึงข้อมูลผู้ใช้จาก database (หรือจะใช้ req.user เลยก็ได้ ถ้า payload มีทุก field)
   const admin = await Admin.findById(req.user.id);
   if (!admin) return res.status(404).json({ error: 'User not found' });
 
-  // ไม่ควรส่ง passwordHash กลับไป
   res.json({
     id: admin._id,
     username: admin.username,
@@ -81,7 +86,6 @@ exports.getMe = async (req, res) => {
     email: admin.email,
     fullName: admin.fullName,
     avartarUrl: admin.avatarUrl,
-    // ...field อื่นๆที่ต้องการ
   });
 };
 

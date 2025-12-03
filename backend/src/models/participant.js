@@ -1,23 +1,3 @@
-// const mongoose = require('mongoose');
-
-// const participantSchema = new mongoose.Schema({
-//   qrCode: { type: String, unique: true, required: true },
-//   fields: { type: Object, default: {} },
-//   status: { type: String, enum: ['registered', 'checkedIn', 'cancelled'], default: 'registered' },
-//   checkedInAt: { type: Date, default: null },
-//   registeredAt: { type: Date, default: Date.now },
-//   updatedAt: { type: Date, default: Date.now },
-//   registeredBy: { type: mongoose.Schema.Types.ObjectId, ref: 'Admin', default: null },
-//   registeredPoint: { type: String, default: 'Online' },
-//   isDeleted: { type: Boolean, default: false },
-//   registrationType: {type: String,enum: ['online', 'onsite'],default: 'onsite'},
-//   followers: { type: Number, default: 0, min: 0 },
-
-// }, { timestamps: true });
-
-// module.exports = mongoose.model('Participant', participantSchema);
-
-
 const mongoose = require('mongoose');
 
 const participantSchema = new mongoose.Schema({
@@ -51,7 +31,15 @@ const participantSchema = new mongoose.Schema({
   },
 
   // เก็บเฉพาะ "จำนวน" ผู้ติดตาม
-  followers: { type: Number, default: 0, min: 0 }
+  followers: { type: Number, default: 0, min: 0 },
+
+  // [ใหม่] เก็บข้อมูลการยินยอม (PDPA Consent)
+  consent: { 
+    type: String, 
+    enum: ['agreed', 'disagreed', null], 
+    default: null 
+  }
+
 }, { timestamps: true, versionKey: false });
 
 // Index ที่ช่วยการค้นหา/แดชบอร์ด

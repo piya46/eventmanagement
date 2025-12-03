@@ -8,7 +8,6 @@ export default function AuthProvider({ children }) {
   const [token, setToken] = useState(() => localStorage.getItem("token") || null);
   const [loading, setLoading] = useState(true);
 
-  // เช็ค token และ session ทุกครั้งที่ mount หรือ token เปลี่ยน
   useEffect(() => {
     let ignore = false;
     async function checkSession() {
@@ -16,10 +15,9 @@ export default function AuthProvider({ children }) {
         try {
           const res = await api.getMe(token);
           if (!ignore) {
-            setUser(res.data); // set user object
+            setUser(res.data);
           }
         } catch (err) {
-          // Token/Session invalid หรือหมดอายุ ให้ลบออก
           setUser(null);
           setToken(null);
           localStorage.removeItem("token");
@@ -35,7 +33,6 @@ export default function AuthProvider({ children }) {
     return () => { ignore = true; };
   }, [token]);
 
-  // Intercept ทุก request ถ้าเจอ 401 (token/Session invalid) ให้ logout อัตโนมัติ
   useEffect(() => {
     const interceptor = api.default.interceptors.response.use(
       res => res,
@@ -51,33 +48,35 @@ export default function AuthProvider({ children }) {
     return () => api.default.interceptors.response.eject(interceptor);
   }, []);
 
-  // login/logout ฟังก์ชัน
-  const login = async (username, password) => {
-  setLoading(true);
-  try {
-    const res = await api.login({ username, password });
-    setToken(res.data.token);
-    localStorage.setItem("token", res.data.token);
-    setUser(res.data.admin); // แล้วแต่ backend
-    return res.data.admin;
-  } catch (err) {
+  // [แก้ไข] รับ cfToken เพิ่ม
+  const login = async (username, password, cfToken) => {
+    setLoading(true);
+    try {
+      // ส่ง cfToken ไปพร้อมกับข้อมูล login
+      const res = await api.login({ username, password, cfToken });
+      setToken(res.data.token);
+      localStorage.setItem("token", res.data.token);
+      setUser(res.data.admin);
+      return res.data.admin;
+    } catch (err) {
+      setUser(null);
+      setToken(null);
+      localStorage.removeItem("token");
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const logout = async () => {
+    if (token) {
+      try { await api.logout(token); } catch {}
+    }
     setUser(null);
     setToken(null);
     localStorage.removeItem("token");
-    throw err; // ให้ caller handle error ได้
-  } finally {
     setLoading(false);
-  }
-};
-const logout = async () => {
-  if (token) {
-    try { await api.logout(token); } catch {}
-  }
-  setUser(null);
-  setToken(null);
-  localStorage.removeItem("token");
-  setLoading(false);
-};
+  };
 
   return (
     <AuthContext.Provider value={{ user, token, loading, login, logout }}>

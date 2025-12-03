@@ -5,16 +5,16 @@ const Session = require('../models/session');
 const ApiLog = require('../models/apilog');
 const auditLog = require('../helpers/auditLog');
 const ms = require('ms');
-const verifyTurnstile = require('../utils/verifyTurnstile'); // [ใหม่] นำเข้า
+const verifyTurnstile = require('../utils/verifyTurnstile'); // ตรวจสอบว่ามีไฟล์นี้แล้ว
 
 exports.login = async (req, res) => {
     const { username, password, cfToken } = req.body;
 
-    // 1. [ใหม่] ตรวจสอบความเป็นคน (Human Check)
-    // ต้องแน่ใจว่ามีไฟล์ utils/verifyTurnstile.js แล้ว (จากขั้นตอนก่อนหน้า)
+    // 1. Human Verification (Turnstile)
+    // ป้องกันบอทก่อนที่จะเริ่มเช็ค Database
     const isHuman = await verifyTurnstile(cfToken, req.ip);
     if (!isHuman) {
-        auditLog({ req, action: 'LOGIN_BOT_BLOCK', detail: 'Turnstile failed', status: 400 });
+        auditLog({ req, action: 'LOGIN_BOT_BLOCK', detail: 'Turnstile verification failed', status: 400 });
         return res.status(400).json({ 
             error: 'Security Check Failed', 
             message: 'ระบบตรวจสอบพบความผิดปกติ (Turnstile Failed) กรุณาลองใหม่อีกครั้ง' 
@@ -32,13 +32,15 @@ exports.login = async (req, res) => {
         return res.status(400).json({ error: 'Invalid credentials' });
     }
 
-    // ... (ส่วน Logic Session และ JWT คงเดิม ไม่มีการเปลี่ยนแปลง) ...
+    // --- Session Management ---
     const jwtExpiresIn = process.env.JWT_EXPIRES_IN || '4h';
     const expiresInMs = ms(jwtExpiresIn);
     const expiresAt = new Date(Date.now() + expiresInMs);
 
+    // เคลียร์ session เก่าที่หมดอายุ
     await Session.deleteMany({ userId: admin._id, expiresAt: { $lt: new Date() } });
 
+    // จำกัดจำนวนเครื่องที่ล็อกอินพร้อมกัน (Optional)
     const activeSessionCount = await Session.countDocuments({
         userId: admin._id,
         revoked: false,
@@ -46,12 +48,14 @@ exports.login = async (req, res) => {
     });
     if (activeSessionCount >= 3) {
         auditLog({ req, action: 'LOGIN_FAIL', detail: 'Too many active sessions', status: 400 });
-        return res.status(400).json({ error: 'Login from too many device' });
+        return res.status(400).json({ error: 'Login from too many devices (Max 3)' });
     }
 
+    // สร้าง Token
     const payload = { id: admin._id, role: admin.role };
     const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: jwtExpiresIn });
 
+    // บันทึก Session
     await Session.create({
         userId: admin._id,
         token,

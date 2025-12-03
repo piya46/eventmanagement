@@ -3,7 +3,7 @@ import {
   Box, Container, Paper, Stack, Typography, TextField, MenuItem,
   Button, Avatar, Divider, Collapse, FormControlLabel, Switch,
   Alert, CircularProgress, Tooltip, Chip, LinearProgress, Card, CardContent, Checkbox,
-  Dialog, DialogContent // [ใหม่] เพิ่ม Dialog
+  Dialog, DialogContent
 } from "@mui/material";
 import DownloadIcon from "@mui/icons-material/Download";
 import PictureAsPdfIcon from "@mui/icons-material/PictureAsPdf";
@@ -12,8 +12,8 @@ import GroupAddIcon from "@mui/icons-material/GroupAdd";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import QrCode2Icon from "@mui/icons-material/QrCode2";
 import InfoIcon from "@mui/icons-material/Info";
-import SecurityIcon from "@mui/icons-material/Security"; // [ใหม่]
-import WarningIcon from "@mui/icons-material/Warning";   // [ใหม่]
+import SecurityIcon from "@mui/icons-material/Security";
+import WarningIcon from "@mui/icons-material/Warning";
 import { QRCodeSVG } from "qrcode.react";
 import html2canvas from "html2canvas";
 import { jsPDF } from "jspdf";
@@ -21,37 +21,24 @@ import { listParticipantFields, createParticipant } from "../utils/api";
 import Turnstile, { executeTurnstile } from "../components/Turnstile";
 
 export default function PreRegistrationPage() {
-  // dynamic form fields
   const [fields, setFields] = useState([]);
   const [form, setForm] = useState({});
   const [loading, setLoading] = useState(false);
   const [fetchingFields, setFetchingFields] = useState(true);
-
-  // result state
   const [result, setResult] = useState(null);
   const [registeredParticipant, setRegisteredParticipant] = useState(null);
 
-  // Error Dialog State [ใหม่]
-  const [errorDialog, setErrorDialog] = useState({ open: false, title: "", msg: "", type: "error" });
-
-  // followers
+  // Feature States
   const [bringFollowers, setBringFollowers] = useState(false);
   const [followersCount, setFollowersCount] = useState(0);
-
-  // Consent
   const [consent, setConsent] = useState(null);
-
-  // Cloudflare Turnstile
   const [cfToken, setCfToken] = useState("");
   const [pendingSubmit, setPendingSubmit] = useState(false);
-
-  // Validation Error State
   const [errors, setErrors] = useState({});
+  const [errorDialog, setErrorDialog] = useState({ open: false, title: "", msg: "", type: "error" });
 
-  // ticket ref
   const ticketRef = useRef();
 
-  // Load field definitions
   useEffect(() => {
     setFetchingFields(true);
     listParticipantFields()
@@ -60,7 +47,6 @@ export default function PreRegistrationPage() {
       .finally(() => setFetchingFields(false));
   }, []);
 
-  // Derived: build UI schema (normalize select options)
   const uiFields = useMemo(() => {
     return (fields || [])
       .filter(f => f?.enabled !== false)
@@ -79,17 +65,14 @@ export default function PreRegistrationPage() {
 
   const handleInput = (e) => {
     const { name, value } = e.target;
+    // Date Year Validation
     if (name === 'date_year') {
       if (!/^\d*$/.test(value)) return;
       if (value.length > 4) return;
       if (value.length === 4 && parseInt(value, 10) < 2400) {
         setErrors(prev => ({ ...prev, [name]: "กรุณากรอกปี พ.ศ. (เช่น 2569)" }));
       } else {
-        setErrors(prev => {
-          const next = { ...prev };
-          delete next[name];
-          return next;
-        });
+        setErrors(prev => { const next = { ...prev }; delete next[name]; return next; });
       }
     }
     setForm((f) => ({ ...f, [name]: value }));
@@ -99,7 +82,7 @@ export default function PreRegistrationPage() {
     setConsent(prev => prev === value ? null : value);
   };
 
-  // เมื่อ Turnstile ได้ token และเรามี pendingSubmit → ยิง submit จริง
+  // Submit Trigger when Token is ready
   useEffect(() => {
     const go = async () => {
       if (!pendingSubmit || !cfToken) return;
@@ -108,12 +91,7 @@ export default function PreRegistrationPage() {
       setRegisteredParticipant(null);
       try {
         const count = bringFollowers ? Math.max(0, parseInt(followersCount || 0, 10)) : 0;
-        const payload = { 
-          ...form, 
-          followers: count, 
-          cfToken,
-          consent 
-        };
+        const payload = { ...form, followers: count, cfToken, consent };
         const participant = await createParticipant(payload);
         setResult({ success: true, message: "ลงทะเบียนล่วงหน้าสำเร็จ!" });
         setRegisteredParticipant(participant.data || participant);
@@ -124,9 +102,9 @@ export default function PreRegistrationPage() {
         setErrors({});
       } catch (err) {
         const errorMsg = err?.response?.data?.error || "เกิดข้อผิดพลาด";
-        
-        // [ใหม่] แสดง Error แบบสวยงาม
         const isSecurity = errorMsg.includes("Security") || errorMsg.includes("Turnstile");
+        
+        // Show Styled Error Dialog
         setErrorDialog({
           open: true,
           type: isSecurity ? "security" : "error",
@@ -134,9 +112,8 @@ export default function PreRegistrationPage() {
           msg: isSecurity ? "ระบบไม่สามารถยืนยันตัวตนของคุณได้ กรุณาลองใหม่อีกครั้ง" : errorMsg
         });
 
-        // Reset Turnstile
         if (window.turnstile) {
-          try { window.turnstile.reset(); } catch (e) {}
+          try { window.turnstile.reset(); } catch {}
         }
       } finally {
         setLoading(false);
@@ -156,8 +133,7 @@ export default function PreRegistrationPage() {
     executeTurnstile();
   };
 
-  // ... (savePdf, savePng, handleReset, components อื่นๆ คงเดิม) ...
-  const savePdf = async () => {
+  const savePdf = async () => { /* ... same as before ... */ 
     if (!ticketRef.current) return;
     const canvas = await html2canvas(ticketRef.current, { scale: 2, useCORS: true });
     const imgData = canvas.toDataURL("image/png");
@@ -171,7 +147,7 @@ export default function PreRegistrationPage() {
     pdf.save("E-Ticket.pdf");
   };
 
-  const savePng = async () => {
+  const savePng = async () => { /* ... same as before ... */
     if (!ticketRef.current) return;
     const canvas = await html2canvas(ticketRef.current, { scale: 2, useCORS: true });
     const link = document.createElement("a");
@@ -194,17 +170,13 @@ export default function PreRegistrationPage() {
   return (
     <Box sx={{ minHeight: "100vh", background: "radial-gradient(1200px 600px at 20% -10%, #fff7db 0%, transparent 60%), radial-gradient(1200px 600px at 120% 110%, #e3f2fd 0%, transparent 60%), linear-gradient(135deg,#fff8e1 0%,#fffde7 100%)", py: { xs: 3, md: 6 } }}>
       <Container maxWidth="sm">
-        {/* ... (Header & Logic rendering fields เหมือนเดิม) ... */}
+        {/* Header */}
         <Paper elevation={4} sx={{ p: { xs: 2.5, md: 3 }, borderRadius: 4, background: "linear-gradient(135deg, rgba(255,243,224,.95) 0%, rgba(227,242,253,.95) 100%)", boxShadow: "0 14px 36px rgba(255,193,7,0.25)", border: "1px solid rgba(255,193,7,.35)" }}>
           <Stack direction="row" spacing={2} alignItems="center" justifyContent="center">
             <Avatar src="/logo.svg" alt="Logo" sx={{ width: 150, height: 150, bgcolor: "#fff", border: "2px solid rgba(255,193,7,.7)", boxShadow: "0 6px 18px rgba(255,193,7,.35)" }} />
             <Box textAlign="center">
-              <Typography variant="h6" fontWeight={900} color="primary" sx={{ letterSpacing: .6 }}>
-                ลงทะเบียนล่วงหน้าเพื่อเข้าร่วมงานคืนเหย้า <br /> "เสือเหลืองคืนถิ่น" <br /> Atoms In Ground Stage 109
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                สถานที่จัดงาน ภายในคณะวิทยาศาสตร์ จุฬาลงกรณ์มหาวิทยาลัย <br /> วันเสาร์ที่ 21 กุมภาพันธ์ 2569 เวลา 17:00 - 22:00 น.
-              </Typography>
+              <Typography variant="h6" fontWeight={900} color="primary" sx={{ letterSpacing: .6 }}>ลงทะเบียนล่วงหน้าเพื่อเข้าร่วมงานคืนเหย้า <br /> "เสือเหลืองคืนถิ่น" <br /> Atoms In Ground Stage 109</Typography>
+              <Typography variant="body2" color="text.secondary">สถานที่จัดงาน ภายในคณะวิทยาศาสตร์ จุฬาลงกรณ์มหาวิทยาลัย <br /> วันเสาร์ที่ 21 กุมภาพันธ์ 2569 เวลา 17:00 - 22:00 น.</Typography>
             </Box>
           </Stack>
 
@@ -214,7 +186,6 @@ export default function PreRegistrationPage() {
             <Box component="form" onSubmit={handleSubmit} sx={{ mt: 3 }}>
               <Stack spacing={2}>
                 {uiFields.length === 0 && <Alert severity="info" variant="outlined">ยังไม่มีฟิลด์ให้กรอก</Alert>}
-
                 {uiFields.map((field) => (
                   <FieldInput key={field.name} field={field} value={form[field.name] ?? ""} onChange={handleInput} errorText={errors[field.name]} />
                 ))}
@@ -232,7 +203,7 @@ export default function PreRegistrationPage() {
                   </Collapse>
                 </Paper>
 
-                {/* Consent & Note */}
+                {/* Consent */}
                 <Paper variant="outlined" sx={{ p: 2, borderRadius: 3, bgcolor: "#f4f9ff", borderColor: consent ? "#cce0ff" : "#ef9a9a" }}>
                   <Typography fontWeight={700} sx={{ mb: 1, color: "#1565c0" }}>การยินยอมข้อมูล <span style={{ color: "red" }}>*</span></Typography>
                   <Stack>
@@ -261,10 +232,10 @@ export default function PreRegistrationPage() {
           )}
         </Paper>
 
-        {/* Ticket Preview (เหมือนเดิม) */}
+        {/* Ticket Preview */}
         {registeredParticipant && (
           <Card elevation={6} sx={{ mt: 4, borderRadius: 4 }}>
-             <CardContent>
+            <CardContent>
               <Box ref={ticketRef} sx={{ textAlign: "center", p: { xs: 2, md: 3 }, border: "2px solid #1976d2", borderRadius: 3, background: "linear-gradient(135deg, #fafbff 80%, #e3eefe 100%)", boxShadow: "0 2px 18px #b3d6f833", position: "relative", overflow: "hidden" }}>
                 <Avatar src="/logo.svg" alt="logo" sx={{ width: 72, height: 72, position: "absolute", right: 12, top: 12, bgcolor: "#fff", border: "2px solid #1976d244" }} />
                 <Typography variant="h6" color="primary" fontWeight={900} sx={{ mb: 1 }}>E-Ticket เข้างาน</Typography>
@@ -285,7 +256,7 @@ export default function PreRegistrationPage() {
           </Card>
         )}
 
-        {/* [ใหม่] Error Dialog สวยงามแบบ Cloudflare */}
+        {/* Error Dialog (Modern Cloudflare Style) */}
         <Dialog
           open={errorDialog.open}
           onClose={() => setErrorDialog({ ...errorDialog, open: false })}
@@ -319,7 +290,7 @@ export default function PreRegistrationPage() {
   );
 }
 
-/* ------- Subcomponents & Helpers (เหมือนเดิม) ------- */
+// ... (Helper functions same as before) ...
 function FieldInput({ field, value, onChange, errorText }) {
   if (field.type === "select") {
     return (

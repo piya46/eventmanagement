@@ -14,9 +14,7 @@ export default function AuthProvider({ children }) {
       if (token) {
         try {
           const res = await api.getMe(token);
-          if (!ignore) {
-            setUser(res.data);
-          }
+          if (!ignore) setUser(res.data);
         } catch (err) {
           setUser(null);
           setToken(null);
@@ -48,11 +46,10 @@ export default function AuthProvider({ children }) {
     return () => api.default.interceptors.response.eject(interceptor);
   }, []);
 
-  // [แก้ไข] รับ cfToken เพิ่ม
+  // [Modified] รับ cfToken เพิ่มเข้ามา
   const login = async (username, password, cfToken) => {
     setLoading(true);
     try {
-      // ส่ง cfToken ไปพร้อมกับข้อมูล login
       const res = await api.login({ username, password, cfToken });
       setToken(res.data.token);
       localStorage.setItem("token", res.data.token);

@@ -237,7 +237,7 @@ export default function PreRegistrationPage() {
                         color="warning"
                       />
                     }
-                    label={bringFollowers ? "เปิดใช้งาน" : "ปิดอยู่"}
+                    label={bringFollowers ? "มีผู้ติดตาม" : "ไม่มีผู้ติดตาม"}
                   />
                   <Collapse in={bringFollowers}>
                     <TextField

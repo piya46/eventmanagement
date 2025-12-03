@@ -2,14 +2,15 @@ import React, { useEffect, useRef, useState, useMemo } from "react";
 import {
   Box, Container, Paper, Stack, Typography, TextField, MenuItem,
   Button, Avatar, Divider, Collapse, FormControlLabel, Switch,
-  Alert, CircularProgress, Tooltip, Chip, LinearProgress, Card, CardContent
-} from "@mui/material";
+  Alert, CircularProgress, Tooltip, Chip, LinearProgress, Card, CardContent, Checkbox
+} from "@mui/material"; // เพิ่ม Checkbox เข้ามา
 import DownloadIcon from "@mui/icons-material/Download";
 import PictureAsPdfIcon from "@mui/icons-material/PictureAsPdf";
 import RestartAltIcon from "@mui/icons-material/RestartAlt";
 import GroupAddIcon from "@mui/icons-material/GroupAdd";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import QrCode2Icon from "@mui/icons-material/QrCode2";
+import InfoIcon from "@mui/icons-material/Info"; // เพิ่มไอคอนสำหรับ Note
 import { QRCodeSVG } from "qrcode.react";
 import html2canvas from "html2canvas";
 import { jsPDF } from "jspdf";
@@ -30,6 +31,9 @@ export default function PreRegistrationPage() {
   // followers
   const [bringFollowers, setBringFollowers] = useState(false);
   const [followersCount, setFollowersCount] = useState(0);
+
+  // Consent (เพิ่ม State สำหรับ Checkbox)
+  const [consent, setConsent] = useState(null); // 'agreed' | 'disagreed' | null
 
   // Cloudflare Turnstile
   const [cfToken, setCfToken] = useState("");
@@ -69,6 +73,15 @@ export default function PreRegistrationPage() {
     setForm((f) => ({ ...f, [name]: value }));
   };
 
+  // Logic สำหรับ Checkbox ให้เลือกได้อย่างใดอย่างหนึ่ง
+  const handleConsentChange = (value) => {
+    if (consent === value) {
+      setConsent(null); // ถ้าเลือกซ้ำให้ยกเลิก
+    } else {
+      setConsent(value);
+    }
+  };
+
   // เมื่อ Turnstile ได้ token และเรามี pendingSubmit → ยิง submit จริง
   useEffect(() => {
     const go = async () => {
@@ -78,13 +91,22 @@ export default function PreRegistrationPage() {
       setRegisteredParticipant(null);
       try {
         const count = bringFollowers ? Math.max(0, parseInt(followersCount || 0, 10)) : 0;
-        const payload = { ...form, followers: count, cfToken };
+        
+        // เพิ่ม consent ลงใน payload (ส่งไปเผื่อ Backend เก็บลง fields หรือแยกเก็บ)
+        const payload = { 
+          ...form, 
+          followers: count, 
+          cfToken,
+          consent: consent // 'agreed' หรือ 'disagreed'
+        };
+        
         const participant = await createParticipant(payload);
         setResult({ success: true, message: "ลงทะเบียนล่วงหน้าสำเร็จ!" });
         setRegisteredParticipant(participant.data || participant);
         setForm({});
         setBringFollowers(false);
         setFollowersCount(0);
+        setConsent(null);
       } catch (err) {
         setResult({
           success: false,
@@ -136,6 +158,7 @@ export default function PreRegistrationPage() {
     setRegisteredParticipant(null);
     setBringFollowers(false);
     setFollowersCount(0);
+    setConsent(null);
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
@@ -163,10 +186,11 @@ export default function PreRegistrationPage() {
             />
             <Box textAlign="center">
               <Typography variant="h6" fontWeight={900} color="primary" sx={{ letterSpacing: .6 }}>
-                ลงทะเบียนล่วงหน้าเพื่อเข้าร่วมงานคืนเหย้าวิทยาศาสตร์ ประจำปี 2569
+                ลงทะเบียนล่วงหน้าเพื่อเข้าร่วมงานคืนเหย้า <br /> "เสือเหลืองคืนถิ่น" <br /> Atoms In Ground Stage 109
               </Typography>
               <Typography variant="body2" color="text.secondary">
-                กรอกข้อมูลให้ครบถ้วน แล้วรับ E-Ticket พร้อม QR สำหรับเช็คอิน
+                สถานที่จัดงาน ภายในคณะวิทยาศาสตร์ จุฬาลงกรณ์มหาวิทยาลัย <br />
+                วันเสาร์ที่ 21 กุมภาพันธ์ 2569 เวลา 17:00 - 22:00 น.
               </Typography>
             </Box>
           </Stack>
@@ -231,6 +255,47 @@ export default function PreRegistrationPage() {
                     />
                   </Collapse>
                 </Paper>
+
+                {/* ส่วน Consent และ หมายเหตุ (ที่เพิ่มใหม่) */}
+                <Paper variant="outlined" sx={{ p: 2, borderRadius: 3, bgcolor: "#f4f9ff", borderColor: "#cce0ff" }}>
+                  <Typography fontWeight={700} sx={{ mb: 1, color: "#1565c0" }}>
+                    การยินยอมข้อมูล
+                  </Typography>
+                  <Stack>
+                    <FormControlLabel
+                      control={
+                        <Checkbox
+                          checked={consent === 'agreed'}
+                          onChange={() => handleConsentChange('agreed')}
+                          color="primary"
+                        />
+                      }
+                      label="ยินยอมให้อัพเดตข้อมูลให้แก่สมาคมนิสิตเก่าวิทยาศาสตร์ จุฬาลงกรณ์มหาวิทยาลัย"
+                    />
+                    <FormControlLabel
+                      control={
+                        <Checkbox
+                          checked={consent === 'disagreed'}
+                          onChange={() => handleConsentChange('disagreed')}
+                          color="error"
+                        />
+                      }
+                      label="ไม่ยินยอมให้อัพเดตข้อมูลให้แก่สมาคมนิสิตเก่าวิทยาศาสตร์ จุฬาลงกรณ์มหาวิทยาลัย"
+                    />
+                  </Stack>
+                </Paper>
+
+                <Alert 
+                  severity="info" 
+                  icon={<InfoIcon />} 
+                  sx={{ 
+                    fontWeight: 500, 
+                    borderRadius: 3,
+                    "& .MuiAlert-icon": { alignItems: "center" }
+                  }}
+                >
+                  หมายเหตุ: ภายในงานจะมีการถ่ายรูปและบันทึกวิดีโอเพื่อนำไปใช้ในการประชาสัมพันธ์
+                </Alert>
 
                 {/* Turnstile (Invisible) */}
                 <Turnstile

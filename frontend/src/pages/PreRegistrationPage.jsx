@@ -182,7 +182,7 @@ export default function PreRegistrationPage() {
             <Avatar
               src="/logo.svg"
               alt="Logo"
-              sx={{ width: 56, height: 56, bgcolor: "#fff", border: "2px solid rgba(255,193,7,.7)", boxShadow: "0 6px 18px rgba(255,193,7,.35)" }}
+              sx={{ width: 150, height: 150, bgcolor: "#fff", border: "2px solid rgba(255,193,7,.7)", boxShadow: "0 6px 18px rgba(255,193,7,.35)" }}
             />
             <Box textAlign="center">
               <Typography variant="h6" fontWeight={900} color="primary" sx={{ letterSpacing: .6 }}>
